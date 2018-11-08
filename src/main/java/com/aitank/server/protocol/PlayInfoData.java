@@ -15,5 +15,5 @@ public class PlayInfoData {
     public float force = 15f;
     public int serverHealth=1 ;
     public String playName="";
-    public int playNumber;
+    public int playerNumber;
 }

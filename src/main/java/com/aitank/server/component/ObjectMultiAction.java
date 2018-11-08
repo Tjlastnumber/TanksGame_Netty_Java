@@ -80,7 +80,7 @@ public class ObjectMultiAction {
             playInfoData.serverHealth = player.serverHealth;
             playInfoData.userId = player.getChx().channel().id().toString();
             playInfoData.playName = player.getName();
-            playInfoData.playNumber = playInfoDataList.playInfoDataList.size();
+            playInfoData.playerNumber = playInfoDataList.playInfoDataList.size();
 
             playInfoDataList.playInfoDataList.add(playInfoData);
         }
