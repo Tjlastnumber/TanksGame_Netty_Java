@@ -9,7 +9,10 @@ public enum EventType2 {
     MsgInitPlay("MsgInitPlay", 2),
     MsgPlayInfoData("MsgPlayInfoData", 3),
     MsgOnLogout("MsgOnLogout", 4),
-    MsgRoom("MsgRoom", 5);
+    MsgCreateRoom("MsgCreateRoom", 5),
+    MsgJoinRoom("MsgJosinRoom", 6),
+    MsgRoomList("MsgRoomList", 7),
+    MsgExitRoom("MsgExitRoom", 8);
 
 
     private String name ;

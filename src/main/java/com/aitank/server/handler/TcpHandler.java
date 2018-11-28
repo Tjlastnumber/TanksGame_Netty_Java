@@ -5,6 +5,7 @@ import com.aitank.server.context.SpringContext;
 import com.aitank.server.dao.UserDao;
 import com.aitank.server.enums.EventType2;
 import com.aitank.server.protocol.PlayInfoData;
+import com.aitank.server.protocol.RoomData;
 import com.aitank.server.protocol.SocketModel;
 import com.aitank.utils.ChannelHandlerContextInfo;
 import io.netty.channel.Channel;
@@ -26,6 +27,7 @@ public class TcpHandler extends ChannelInboundHandlerAdapter {
 
 
     public static Map<String, ChannelHandlerContextInfo> players = new HashMap<String, ChannelHandlerContextInfo>();
+    public static Map<String, RoomData> rooms = new HashMap<>();
     public static final ChannelGroup group = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
     public Map<EventType2, BaseHandler> handlerMap = new HashMap<>();
 
@@ -76,22 +78,34 @@ public class TcpHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("room:" + ctx.channel().id() + " leave room");
         System.out.println("clinet:" + ctx.channel().id() + " leave server");
         super.channelInactive(ctx);
 
-        if (TcpHandler.players.containsKey(ctx.channel().id().toString())) {
-            TcpHandler.players.remove(ctx.channel().id().toString());
+        String userId = ctx.channel().id().toString();
+
+        if (TcpHandler.players.containsKey(userId)) {
+            TcpHandler.rooms.remove(userId);
+            TcpHandler.players.remove(userId);
             System.out.println("PlayerNumbers : " + TcpHandler.players.size());
             SocketModel response = new SocketModel();
             response.setProtocolName(EventType2.MsgOnLogout.getName());//("MsgOnLogout");
 
             PlayInfoData playInfoData = new PlayInfoData();
-            playInfoData.userId = ctx.channel().id().toString();
+            playInfoData.userId = userId;
 
             response.serialize(playInfoData);
 
+            /*
+             * 退出房间
+             */
+            SocketModel room = new SocketModel();
+            room.setProtocolName(EventType2.MsgExitRoom);
+            room.serialize(userId);
+
             for (String cid : TcpHandler.players.keySet()) {
                 ChannelHandlerContextInfo player = TcpHandler.players.get(cid);
+                player.getChx().writeAndFlush(room);
                 player.getChx().writeAndFlush(response);
             }
 

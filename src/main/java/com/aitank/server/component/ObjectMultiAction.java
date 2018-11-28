@@ -3,18 +3,31 @@ package com.aitank.server.component;
 import com.aitank.server.context.SpringContext;
 import com.aitank.server.enums.EventType2;
 import com.aitank.server.handler.TcpHandler;
-import com.aitank.server.protocol.PlayInfoData;
-import com.aitank.server.protocol.PlayInfoDataList;
-import com.aitank.server.protocol.SocketModel;
-import com.aitank.server.protocol.UserLoginData;
+import com.aitank.server.protocol.*;
 import com.aitank.utils.ChannelHandlerContextInfo;
+import com.sun.xml.internal.ws.binding.FeatureListUtil;
+import com.sun.xml.internal.ws.policy.PolicyMapUtil;
 import io.netty.channel.ChannelHandlerContext;
+import org.slf4j.helpers.Util;
 import org.springframework.stereotype.Component;
+import sun.plugin.com.Utils;
+
+import javax.naming.CannotProceedException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class ObjectMultiAction {
 
-    public  void MsgLogin(ChannelHandlerContext ctx, SocketModel message){
+    /**
+     * 用户登录
+     *
+     * @param ctx
+     * @param message
+     */
+    public void MsgLogin(ChannelHandlerContext ctx, SocketModel message) {
         UserLoginData UserLoginData = message.deserialize(UserLoginData.class);
 
         //获取数值
@@ -42,27 +55,40 @@ public class ObjectMultiAction {
         response.serialize(UserLoginData);
         ctx.writeAndFlush(response);
     }
-    public void MsgPlayInfoData(ChannelHandlerContext ctx, SocketModel message){
+
+    /**
+     * 用户信息
+     *
+     * @param ctx
+     * @param message
+     */
+    public void MsgPlayInfoData(ChannelHandlerContext ctx, SocketModel message) {
         PlayInfoData playInfoData = message.deserialize(PlayInfoData.class);
 
         ChannelHandlerContextInfo currentPlayer = TcpHandler.players.get(ctx.channel().id().toString());
-        currentPlayer.setPosition(new float[]{playInfoData.position1,playInfoData.position2,playInfoData.position3});
-        currentPlayer.setRotation(new float[]{playInfoData.rotation1,playInfoData.rotation2,playInfoData.rotation3,playInfoData.rotation4});
+        currentPlayer.setPosition(new float[]{playInfoData.position1, playInfoData.position2, playInfoData.position3});
+        currentPlayer.setRotation(new float[]{playInfoData.rotation1, playInfoData.rotation2, playInfoData.rotation3, playInfoData.rotation4});
         currentPlayer.setShoot(playInfoData.shoot);
         currentPlayer.serverHealth = playInfoData.serverHealth;
         SocketModel response = new SocketModel();
         response.setProtocolName(EventType2.MsgPlayInfoData.getName());//("MsgPlayInfoData");
 
         response.serialize(playInfoData);
-        for (String cid : TcpHandler.players.keySet())
-        {
-            if(cid.equals(ctx.channel().id().toString()))
+        for (String cid : TcpHandler.players.keySet()) {
+            if (cid.equals(ctx.channel().id().toString()))
                 continue;
             ChannelHandlerContextInfo player = TcpHandler.players.get(cid);
             player.getChx().writeAndFlush(response);
         }
     }
-    public void MsgInitPlay(ChannelHandlerContext ctx, SocketModel message){
+
+    /**
+     * 角色信息
+     *
+     * @param ctx
+     * @param message
+     */
+    public void MsgInitPlay(ChannelHandlerContext ctx, SocketModel message) {
         PlayInfoDataList playInfoDataList = new PlayInfoDataList();
 
         for (String cid : TcpHandler.players.keySet()) {
@@ -91,5 +117,123 @@ public class ObjectMultiAction {
         response.serialize(playInfoDataList);
 
         ctx.writeAndFlush(response);
+    }
+
+    /**
+     * 创建信息
+     */
+    public void MsgCreateRoom(ChannelHandlerContext ctx, SocketModel msg) {
+        RoomData room = msg.deserialize(RoomData.class);
+        String userId = ctx.channel().id().toString();
+
+        room.setId(UUID.randomUUID().toString());
+        room.setMasterId(userId);
+        room.joinRoom(userId);
+
+        System.out.println("Create Room: " + userId + "->" + room.getName());
+        /*
+         * 维护房间 Map
+         */
+        TcpHandler.rooms.put(room.getId(), room);
+        System.out.println("Room Number: " + TcpHandler.rooms.size());
+
+        /*
+         * 通知创建用户结果
+         */
+        SocketModel response = new SocketModel();
+        response.setProtocolName(EventType2.MsgCreateRoom);
+        response.serialize(room);
+        ctx.writeAndFlush(response);
+    }
+
+    /**
+     * 加入房间
+     */
+    public void MsgJoinRoom(ChannelHandlerContext ctx, SocketModel msg) {
+        String userId = ctx.channel().id().toString();
+        Map<String, RoomData> rooms = TcpHandler.rooms;
+
+        System.out.println("Join Room: " + userId);
+
+        RoomData room = msg.deserialize(RoomData.class);
+        room = rooms.get(room.getId());
+        room.joinRoom(userId);
+
+        SocketModel response = new SocketModel();
+        response.setProtocolName(EventType2.MsgJoinRoom);
+        response.serialize(room);
+        NotificationPlayers(ctx.channel().id().toString(), room.getPlayers(), response);
+    }
+
+    /**
+     * 离开房间
+     */
+    public void MsgExitRoom(ChannelHandlerContext ctx, SocketModel msg) {
+        String userId = ctx.channel().id().toString();
+        Map<String, RoomData> rooms = TcpHandler.rooms;
+
+        System.out.println("Exit Room: " + userId);
+
+        RoomData room = msg.deserialize(RoomData.class);
+        room = rooms.get(room.getId());
+        room.exitRoom(userId);
+
+        SocketModel response = new SocketModel();
+        response.setProtocolName(EventType2.MsgExitRoom);
+        response.serialize(room);
+        NotificationPlayers(ctx.channel().id().toString(), room.getPlayers(), response);
+    }
+
+    /**
+     * 发送房间列表
+     */
+    public void MsgRoomList(ChannelHandlerContext ctx, SocketModel msg) {
+        Map<String, RoomData> roomMap = TcpHandler.rooms;
+        List<RoomData> rooms = new ArrayList<>(roomMap.values());
+        SocketModel response = new SocketModel();
+        RoomDataList roomList = new RoomDataList();
+        roomList.list.addAll(rooms);
+
+        response.setProtocolName(EventType2.MsgRoomList);
+        response.serialize(roomList);
+        ctx.writeAndFlush(response);
+    }
+
+    /**
+     * 通知所有玩家（排除当前会话玩家）
+     * @param currentPlayer
+     * @param msg
+     */
+    private void NotificationPlayers(String currentPlayer, SocketModel msg) {
+        for (String cid : TcpHandler.players.keySet()) {
+            if (cid.equals(currentPlayer)) continue;
+            ChannelHandlerContextInfo player = TcpHandler.players.get(cid);
+            player.getChx().writeAndFlush(msg);
+        }
+    }
+
+    /**
+     * 通知所有玩家
+     * @param msg
+     */
+    private void NotificationPlayers(SocketModel msg) {
+        for (String cid : TcpHandler.players.keySet()) {
+            ChannelHandlerContextInfo player = TcpHandler.players.get(cid);
+            player.getChx().writeAndFlush(msg);
+        }
+    }
+
+    /**
+     * 通知所有房间玩家
+     * @param currentPlayer
+     * @param userIds
+     * @param msg
+     */
+    private void NotificationPlayers(String currentPlayer, List<String> userIds, SocketModel msg) {
+        for (String cid : userIds) {
+            if (cid.equals(currentPlayer)) continue;
+            ChannelHandlerContextInfo player = TcpHandler.players.get(cid);
+            player.getChx().writeAndFlush(msg);
+        }
     }
 }

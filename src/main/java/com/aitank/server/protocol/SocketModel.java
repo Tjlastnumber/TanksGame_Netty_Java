@@ -1,5 +1,6 @@
 package com.aitank.server.protocol;
 
+import com.aitank.server.enums.EventType2;
 import io.protostuff.LinkedBuffer;
 import io.protostuff.ProtobufIOUtil;
 import io.protostuff.ProtostuffIOUtil;
@@ -123,6 +124,11 @@ public class SocketModel {
     public void setProtocolName(String protocolName) {
         ProtocolName = protocolName;
     }
+
+    public void setProtocolName(EventType2 protocolType) {
+        ProtocolName = protocolType.getName();
+    }
+
     public String getProtocolDesc() {
         return ProtocolDesc;
     }
