@@ -8,7 +8,8 @@ public enum EventType2 {
     MsgLogin("MsgLogin", 1),
     MsgInitPlay("MsgInitPlay", 2),
     MsgPlayInfoData("MsgPlayInfoData", 3),
-    MsgOnLogout("MsgOnLogout", 4);
+    MsgOnLogout("MsgOnLogout", 4),
+    MsgRoom("MsgRoom", 5);
 
 
     private String name ;
