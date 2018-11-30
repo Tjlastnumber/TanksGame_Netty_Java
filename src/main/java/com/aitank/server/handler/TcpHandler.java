@@ -2,7 +2,6 @@ package com.aitank.server.handler;
 
 import com.aitank.server.component.ObjectMultiAction;
 import com.aitank.server.context.SpringContext;
-import com.aitank.server.dao.UserDao;
 import com.aitank.server.enums.EventType2;
 import com.aitank.server.protocol.PlayInfoData;
 import com.aitank.server.protocol.RoomData;
@@ -15,8 +14,6 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.util.concurrent.GlobalEventExecutor;
-import org.apache.ibatis.executor.statement.BaseStatementHandler;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -85,9 +82,16 @@ public class TcpHandler extends ChannelInboundHandlerAdapter {
         String userId = ctx.channel().id().toString();
 
         if (TcpHandler.players.containsKey(userId)) {
-            TcpHandler.rooms.remove(userId);
+            String roomId = TcpHandler.players.get(userId).getRoomId();
+            if (TcpHandler.rooms.containsKey(roomId)) {
+                RoomData room = TcpHandler.rooms.get(roomId);
+                room.exit(userId);
+                if (room.getPlayers().size() == 0)
+                    TcpHandler.rooms.remove(roomId);
+            }
             TcpHandler.players.remove(userId);
             System.out.println("PlayerNumbers : " + TcpHandler.players.size());
+            System.out.println("RoomNumbers : " + TcpHandler.rooms.size());
             SocketModel response = new SocketModel();
             response.setProtocolName(EventType2.MsgOnLogout.getName());//("MsgOnLogout");
 

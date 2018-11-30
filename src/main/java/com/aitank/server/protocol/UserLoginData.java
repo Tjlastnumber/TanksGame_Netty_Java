@@ -5,8 +5,9 @@ public class UserLoginData {
     private String UserId;
     private String UserName;
     private String PassWord;
-    
-    public String getUserName() {
+	private String roomId;
+
+	public String getUserName() {
 		return UserName;
 	}
 	public void setUserName(String userName) {
@@ -24,4 +25,6 @@ public class UserLoginData {
 	public void setUserId(String userId) {
 		UserId = userId;
 	}
+	public String getRoomId() { return roomId; }
+	public void setRoomId(String value) { roomId = value; }
 }

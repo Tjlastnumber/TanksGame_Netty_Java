@@ -101,7 +101,8 @@ public class SocketModel {
         byte[] paramArrayOfByte = bytes;
 
         if (paramArrayOfByte == null || paramArrayOfByte.length == 0) {
-            throw new RuntimeException("反序列化对象发生异常,byte序列为空!");
+//            throw new RuntimeException("反序列化对象发生异常,byte序列为空!");
+            return null;
         }
 
         T instance = null;

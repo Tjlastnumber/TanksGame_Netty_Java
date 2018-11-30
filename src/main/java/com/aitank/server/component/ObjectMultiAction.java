@@ -1,18 +1,12 @@
 package com.aitank.server.component;
 
-import com.aitank.server.context.SpringContext;
 import com.aitank.server.enums.EventType2;
 import com.aitank.server.handler.TcpHandler;
 import com.aitank.server.protocol.*;
 import com.aitank.utils.ChannelHandlerContextInfo;
-import com.sun.xml.internal.ws.binding.FeatureListUtil;
-import com.sun.xml.internal.ws.policy.PolicyMapUtil;
 import io.netty.channel.ChannelHandlerContext;
-import org.slf4j.helpers.Util;
 import org.springframework.stereotype.Component;
-import sun.plugin.com.Utils;
 
-import javax.naming.CannotProceedException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -128,7 +122,10 @@ public class ObjectMultiAction {
 
         room.setId(UUID.randomUUID().toString());
         room.setMasterId(userId);
-        room.joinRoom(userId);
+        room.join(userId);
+
+        // 设置用户所在房间 id
+        TcpHandler.players.get(userId).setRoomId(room.getId());
 
         System.out.println("Create Room: " + userId + "->" + room.getName());
         /*
@@ -144,6 +141,12 @@ public class ObjectMultiAction {
         response.setProtocolName(EventType2.MsgCreateRoom);
         response.serialize(room);
         ctx.writeAndFlush(response);
+
+        RoomDataList roomList = new RoomDataList(new ArrayList<>(TcpHandler.rooms.values()));
+        SocketModel notifyRoomListRefresh = new SocketModel();
+        notifyRoomListRefresh.setProtocolName(EventType2.MsgRoomList);
+        notifyRoomListRefresh.serialize(roomList);
+        notificationPlayers(userId, notifyRoomListRefresh);
     }
 
     /**
@@ -157,12 +160,13 @@ public class ObjectMultiAction {
 
         RoomData room = msg.deserialize(RoomData.class);
         room = rooms.get(room.getId());
-        room.joinRoom(userId);
+        room.join(userId);
+        TcpHandler.players.get(userId).setRoomId(room.getId());
 
         SocketModel response = new SocketModel();
         response.setProtocolName(EventType2.MsgJoinRoom);
         response.serialize(room);
-        NotificationPlayers(ctx.channel().id().toString(), room.getPlayers(), response);
+        notificationPlayers(ctx.channel().id().toString(), room.getPlayers(), response);
     }
 
     /**
@@ -171,17 +175,27 @@ public class ObjectMultiAction {
     public void MsgExitRoom(ChannelHandlerContext ctx, SocketModel msg) {
         String userId = ctx.channel().id().toString();
         Map<String, RoomData> rooms = TcpHandler.rooms;
+        ChannelHandlerContextInfo userInfo = TcpHandler.players.get(userId);
+
+        RoomData room = rooms.get(userInfo.getRoomId());
+        room.exit(userId);
+        userInfo.setRoomId(null);
 
         System.out.println("Exit Room: " + userId);
-
-        RoomData room = msg.deserialize(RoomData.class);
-        room = rooms.get(room.getId());
-        room.exitRoom(userId);
+        if (room.getPlayers().size() == 0) {
+            rooms.remove(room.getId());
+            RoomDataList roomList = new RoomDataList(new ArrayList<>(rooms.values()));
+            SocketModel notifyRoomListRefresh = new SocketModel();
+            notifyRoomListRefresh.setProtocolName(EventType2.MsgRoomList);
+            notifyRoomListRefresh.serialize(roomList);
+            notificationPlayers(userId, notifyRoomListRefresh);
+            System.out.println("===" + room.getName() + " Room Close ===");
+        }
 
         SocketModel response = new SocketModel();
         response.setProtocolName(EventType2.MsgExitRoom);
         response.serialize(room);
-        NotificationPlayers(ctx.channel().id().toString(), room.getPlayers(), response);
+        notificationPlayers(ctx.channel().id().toString(), room.getPlayers(), response);
     }
 
     /**
@@ -190,10 +204,9 @@ public class ObjectMultiAction {
     public void MsgRoomList(ChannelHandlerContext ctx, SocketModel msg) {
         Map<String, RoomData> roomMap = TcpHandler.rooms;
         List<RoomData> rooms = new ArrayList<>(roomMap.values());
-        SocketModel response = new SocketModel();
-        RoomDataList roomList = new RoomDataList();
-        roomList.list.addAll(rooms);
+        RoomDataList roomList = new RoomDataList(rooms);
 
+        SocketModel response = new SocketModel();
         response.setProtocolName(EventType2.MsgRoomList);
         response.serialize(roomList);
         ctx.writeAndFlush(response);
@@ -204,7 +217,7 @@ public class ObjectMultiAction {
      * @param currentPlayer
      * @param msg
      */
-    private void NotificationPlayers(String currentPlayer, SocketModel msg) {
+    private void notificationPlayers(String currentPlayer, SocketModel msg) {
         for (String cid : TcpHandler.players.keySet()) {
             if (cid.equals(currentPlayer)) continue;
             ChannelHandlerContextInfo player = TcpHandler.players.get(cid);
@@ -216,7 +229,7 @@ public class ObjectMultiAction {
      * 通知所有玩家
      * @param msg
      */
-    private void NotificationPlayers(SocketModel msg) {
+    private void notificationPlayers(SocketModel msg) {
         for (String cid : TcpHandler.players.keySet()) {
             ChannelHandlerContextInfo player = TcpHandler.players.get(cid);
             player.getChx().writeAndFlush(msg);
@@ -229,7 +242,7 @@ public class ObjectMultiAction {
      * @param userIds
      * @param msg
      */
-    private void NotificationPlayers(String currentPlayer, List<String> userIds, SocketModel msg) {
+    private void notificationPlayers(String currentPlayer, List<String> userIds, SocketModel msg) {
         for (String cid : userIds) {
             if (cid.equals(currentPlayer)) continue;
             ChannelHandlerContextInfo player = TcpHandler.players.get(cid);

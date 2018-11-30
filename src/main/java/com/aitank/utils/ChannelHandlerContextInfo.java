@@ -5,6 +5,12 @@ import io.netty.channel.ChannelHandlerContext;
 public class ChannelHandlerContextInfo {
     private float force;
 
+    private String roomId;
+
+    public String getRoomId() { return roomId; }
+
+    public void setRoomId(String value) { roomId = value; }
+
     public boolean isShoot() {
         return shoot;
     }
